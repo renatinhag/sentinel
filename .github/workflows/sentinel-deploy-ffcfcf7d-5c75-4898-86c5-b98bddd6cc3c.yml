@@ -1,0 +1,81 @@
+name: Deploy Content to law-sentinel-prod-001 [ffcfcf7d-5c75-4898-86c5-b98bddd6cc3c]
+# Note: This workflow will deploy everything in the root directory.
+# To deploy content only from a specific path (for example SentinelContent):
+#   1. Add the target path to the "paths" property like such
+#    paths:
+#    - 'SentinelContent/**'
+#    - '!.github/workflows/**'
+#    - '.github/workflows/sentinel-deploy-ffcfcf7d-5c75-4898-86c5-b98bddd6cc3c.yml'
+#   2. Append the path to the directory environment variable below
+#       directory: '${{ github.workspace }}/SentinelContent'
+
+on: 
+  push:
+    branches: [ master ]
+    paths:
+    - '**'
+    - '!.github/workflows/**'  # this filter prevents other workflow changes from triggering this workflow
+    - '.github/workflows/sentinel-deploy-ffcfcf7d-5c75-4898-86c5-b98bddd6cc3c.yml'
+
+jobs:
+  deploy-content:
+    runs-on: windows-latest
+    env:
+      resourceGroupName: 'rg-prod-sentinel-lab001'
+      workspaceName: 'law-sentinel-prod-001'
+      workspaceId: 'e7182ca0-5c0d-4947-9f4b-2bbf5611dd1c'
+      directory: '${{ github.workspace }}'
+      cloudEnv: 'AzureCloud'
+      creds: ${{ secrets.AZURE_SENTINEL_CREDENTIALS_ffcfcf7d5c75489886c5b98bddd6cc3c }}
+      contentTypes: 'Workbook,Playbook,Parser,HuntingQuery,AutomationRule,AnalyticsRule'
+      branch: 'master'
+      sourceControlId: 'ffcfcf7d-5c75-4898-86c5-b98bddd6cc3c'
+      rootDirectory: '${{ github.workspace }}'
+      githubAuthToken: ${{ secrets.GITHUB_TOKEN }}
+      smartDeployment: 'true'
+
+    steps:
+    - name: Login to Azure (Attempt 1)
+      continue-on-error: true
+      id: login1
+      uses: azure/login@v1
+      if: ${{ env.cloudEnv == 'AzureCloud' }}
+      with:
+        creds: ${{ secrets.AZURE_SENTINEL_CREDENTIALS_ffcfcf7d5c75489886c5b98bddd6cc3c }}
+        enable-AzPSSession: true
+
+    - name: Wait 30 seconds if login attempt 1 failed
+      if: ${{ env.cloudEnv == 'AzureCloud' && steps.login1.outcome=='failure' }}
+      run: powershell Start-Sleep -s 30
+    
+    - name: Login to Azure (Attempt 2)
+      continue-on-error: true
+      id: login2
+      uses: azure/login@v1
+      if: ${{ env.cloudEnv == 'AzureCloud' && steps.login1.outcome=='failure' }}
+      with:
+        creds: ${{ secrets.AZURE_SENTINEL_CREDENTIALS_ffcfcf7d5c75489886c5b98bddd6cc3c }}
+        enable-AzPSSession: true
+
+    - name: Wait 30 seconds if login attempt 2 failed
+      if: ${{ env.cloudEnv == 'AzureCloud' && steps.login2.outcome=='failure' }}
+      run: powershell Start-Sleep -s 30
+    
+    - name: Login to Azure (Attempt 3)
+      continue-on-error: false
+      id: login3
+      uses: azure/login@v1
+      if: ${{ env.cloudEnv == 'AzureCloud' && steps.login2.outcome=='failure'  }}
+      with:
+        creds: ${{ secrets.AZURE_SENTINEL_CREDENTIALS_ffcfcf7d5c75489886c5b98bddd6cc3c }}
+        enable-AzPSSession: true
+
+    - name: Checkout
+      uses: actions/checkout@v3
+    
+    - name: Deploy Content to Azure Sentinel
+      uses: azure/powershell@v1
+      with:
+        azPSVersion: 'latest'
+        inlineScript: |
+          ${{ github.workspace }}//.github/workflows/azure-sentinel-deploy-ffcfcf7d-5c75-4898-86c5-b98bddd6cc3c.ps1
